@@ -3,96 +3,33 @@
 #include <stdlib.h>
 #include <string.h>
 #include "emalloc.h"
+#include "dyn_survey.h"
 #include "input_handling.h"
+
 #include "processing.h"
 
 #include "output.h"
 
-#define MAX_QUESTIONS 12
-
-#define NUM__OF_STUDENTS 10
-
-#define MAX_LEN 1000
-
-#define DISAGREE 0
-#define AGREE 3
-#define PARTIALLY_DISAGREE 1
-#define PARTIALLY_AGREE 2
-
-#define TRUE 1
-#define FALSE 0
-
-#define MAX_ANSWERS 12
-#define OPTIONS 10
-
 // Store filelines
 char *buffer;
 
-// Store question strings
-
 // Store question average
-double question_average[MAX_ANSWERS];
-// dynamic array to tell what answers to look out for.
+double *question_average = NULL;
 
 // store frequency of answers
 double **ans;
 
 int found_idx = 0;
 
-int MAX_RESPONDANTS = 0;
 int r_idx = 0;
 int question_idx = 0;
 int test_answers = FALSE;
 int total_answers = 0;
 
-typedef struct Respondent Respondent;
-struct Respondent
-{
-    char *degree;
-    char *residence;
-};
 
-typedef struct Response Response;
-typedef struct Survey Survey;
-
-typedef struct Response
-{
-    Respondent *respondent;
-    int num_answers;
-    int **answers; // store answers similar to the double ans array
-} Response;
-struct Survey
-{
-
-    int show_averages;
-    int show_frequencies;
-    int show_demographics;
-    char **programs;
-    int num_programs;
-    char **status;
-    int num_status;
-    char **questions;
-    char **answers;
-    int num_questions;
-
-    int num_answers;
-    int num_respondents;
-};
-
-Response *responses = {0};
-
+// Initalize Response and Survey structures.
+Response *responses = NULL;
 Survey survey = {0};
-
-Respondent *newRespondent(char *degree, char *residence)
-{
-    Respondent *temp;
-
-    temp = (Respondent *)emalloc(sizeof(Respondent));
-    temp->degree = degree;
-    temp->residence = residence;
-
-    return temp;
-}
 
 /*
     Proccess the entire survey file.
@@ -101,17 +38,18 @@ Respondent *newRespondent(char *degree, char *residence)
 */
 void proccess_survey_file()
 {
-    // test whether user reached answers in file.
-
+    // Handle Parse State
     int parse_state = 0;
+    
+    // parses the amount of responses.
     char *max_num;
-    char *degree;
-    char *residence;
-    Respondent *nm;
+
+
     buffer = (char *)emalloc(MAX_LEN);
 
     while (fgets(buffer, MAX_LEN, stdin) != NULL)
     {
+        // tokenized line to handle all survey answers
         char *line;
         if (buffer[0] == '#' || strlen(buffer) <= 1)
             continue;
@@ -119,24 +57,30 @@ void proccess_survey_file()
         switch (parse_state)
         {
         case 0:
-            get_config(buffer);
+            // scan the required bits to determine what data to show
             sscanf(buffer, "%d,%d,%d", &survey.show_frequencies, &survey.show_averages, &survey.show_demographics);
 
             parse_state = 1;
             break;
         case 1:
+
+            // parse the survey programs
             dyn_parse(buffer, &survey.programs, &survey.num_programs);
+           
             parse_state = 2;
             break;
         case 2:
+            // parse the survey residence status
             dyn_parse(buffer, &survey.status, &survey.num_status);
             parse_state = 3;
             break;
         case 3:
+            // get the questions
             get_questions(buffer);
             parse_state = 4;
             break;
         case 4:
+            // getting the possible answers first then get survet responses 
             if (strchr(buffer, ',') != NULL && test_answers == FALSE)
             {
                 get_answers(buffer);
@@ -145,41 +89,119 @@ void proccess_survey_file()
             }
             else
             {
-
+                // tokenize the buffer
                 line = strtok(buffer, ",\n");
+                
+                /*
+                    Allocate memory for respondent, degree. and residence to correctly copy the toekn into each property of respondent.
+                */
+                responses[r_idx].respondent = (Respondent *)emalloc(sizeof(Respondent));
+                responses[r_idx].respondent->degree = (char *)emalloc(strlen(line) + 1);
 
-                degree = (char *)emalloc(strlen(line) + 1);
-                strncpy(degree, line, strlen(line));
-                degree[strlen(line)] = '\0';
+                strncpy(responses[r_idx].respondent->degree, line, strlen(line));
+                responses[r_idx].respondent->degree[strlen(line)] = '\0';
 
                 line = strtok(NULL, ",\n");
 
-                residence = (char *)emalloc(strlen(line) + 1);
-                strncpy(residence, line, strlen(line));
-                residence[strlen(line)] = '\0';
+                responses[r_idx].respondent->residence = (char *)emalloc(strlen(line) + 1);
 
-                nm = newRespondent(degree, residence);
+                strncpy(responses[r_idx].respondent->residence, line, strlen(line));
+                responses[r_idx].respondent->residence[strlen(line)] = '\0';
 
-                responses[r_idx].respondent = nm;
                 get_answers(line);
+               
                 r_idx++;
             }
             break;
 
         case 5:
+            // Stores the max number of respondents in survey.num_respondents
+            
             max_num = strtok(buffer, "\n");
             survey.num_respondents = atoi(max_num);
-
             responses = (Response *)emalloc(sizeof(Response) * survey.num_respondents);
+            // initalize each respondent of response to NULL
+            for (int i = 0; i < survey.num_respondents; i++)
+            {
+               responses[i].respondent = NULL;
+            }
             parse_state = 4;
             break;
         }
     }
 
     free(buffer);
-    if (r_idx > 0)
-        survey.num_respondents = r_idx;
- 
+    
+    
+}
+
+/*
+Free all items used in to process the survey.
+Params: Nothing
+Returns: Nothing
+*/
+void free_items()
+{
+
+    if (survey.questions != NULL)
+    {
+        for (int i = 0; i < survey.num_questions; i++)
+        {
+            if (survey.questions[i] != NULL)
+                free(survey.questions[i]);
+        }
+        free(survey.questions);
+    }
+    
+    if (survey.programs != NULL)
+    {
+        for (int i = 0; i < survey.num_programs; i++)
+        {
+            if (survey.programs[i] != NULL)
+                free(survey.programs[i]);
+        }
+        free(survey.programs);
+    }
+
+   
+    if (survey.status != NULL)
+    {
+        for (int i = 0; i < survey.num_status; i++)
+        {
+            if (survey.status[i] != NULL)
+                free(survey.status[i]);
+        }
+        free(survey.status);
+    }
+
+  
+    if (ans != NULL)
+    {
+        for (int i = 0; i < MAX_ANSWERS; i++)
+        {
+            if (ans[i] != NULL)
+                free(ans[i]);
+        }
+        free(ans);
+    }
+
+   
+    if (question_average != NULL)
+        free(question_average);
+
+    if (responses != NULL)
+    {
+        for (int i = 0; i < survey.num_respondents; i++)
+        {
+            if (responses[i].respondent != NULL)
+            {
+                free(responses[i].respondent->degree);
+                free(responses[i].respondent->residence);
+                free(responses[i].respondent);
+            }
+        }
+        free(responses);
+    }
 }
 
 /*
@@ -206,56 +228,34 @@ int main(int argc, char *argv[])
         printf("FOR EACH QUESTION/ASSERTION BELOW, THE AVERAGE RESPONSE IS SHOWN (FROM 1-DISAGREEMENT TO 4-AGREEMENT)\n\n");
         display_averages(survey.questions, question_average);
     }
-
+    double *program_freq = NULL;
+    double *status_freq = NULL;
     if (survey.show_demographics == TRUE)
     {
+        // Calculating Program and Status frequencies 
+        program_freq = (double *)emalloc(survey.num_programs * sizeof(double)); // allocate memory for both arrays and initalize each index to zero
+        for (int i = 0; i < survey.num_programs; i++)
+            program_freq[i] = 0.0;
+        status_freq = (double *)emalloc(survey.num_status * sizeof(double));
+        for (int i = 0; i < survey.num_status; i++)
+            status_freq[i] = 0.0;
+        // calcuate both respondent with a the frequency destination array
+        calc_respondent(responses, survey, &program_freq);
+        calc_status(responses, survey, &status_freq);
+
         printf("\n#####\n");
         printf("FOR EACH DEMOGRAPHIC CATEGORY BELOW, RELATIVE PERCENTUAL FREQUENCIES ARE COMPUTED FOR EACH ATTRIBUTE VALUE\n\n");
-        printf("UNDERGRADUATE PROGRAM\n");
-        printf("%s\n", survey.programs[0]);
-        for (int i = 0; i < survey.num_programs; i++)
-        {
-            printf("%d : %s\n", i + 1, survey.programs[i]);
-        }
-        printf("RESIDENCE STATUS\n");
-        for (int i = 0; i < survey.num_status; i++)
-        {
-            printf("%d : %s\n", i + 1, survey.status[i]);
-        }
-    }
-
-    for (int i = 0; i < r_idx; i++)
-        printf("%s %s\n", responses[i].respondent->degree, responses[i].respondent->residence);
-
-    for (int i = 0; i < survey.num_questions; i++)
-    {
-        free(survey.questions[i]);
-    }
-
-    for (int i = 0; i < survey.num_answers; i++)
-    {
-        free(survey.answers[i]);
-    }
-    for (int i = 0; i < survey.num_programs; i++)
-    {
-        free(survey.programs[i]);
-    }
-    for (int i = 0; i < survey.num_status; i++)
-    {
-        free(survey.status[i]);
-    }
-
-    for (int i = 0; i < MAX_ANSWERS; i++)
-    {
-        free(ans[i]);
-    }
-    free(ans);
-    free(survey.answers);
-    free(survey.questions);
-    free(survey.programs);
-    free(survey.status);
-
-    free(responses);
+      
+        // display both program and status to the stdin.
+        display_demographics(survey, program_freq, "UNDERGRADUATE PROGRAM\n", &survey.num_programs, survey.programs);
+        
+        display_demographics(survey, status_freq, "\nRESIDENCE STATUS\n", &survey.num_status, survey.status);
+        free(status_freq);
+        free(program_freq);
+    };
+    
+    // Free items after everything is used.
+    free_items();
 
     return 0;
 }

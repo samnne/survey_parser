@@ -7,45 +7,20 @@
 #include "dyn_survey.h"
 #include "processing.h"
 
-#define MAX_QUESTIONS 12
-#define MAX_LEN 1000
-#define TRUE 1
-#define FALSE 0
-#define MAX_ANSWERS 12
-#define OPTIONS 10
 
-// Store filelines
+/*
+    Initalize the survey values
+    Params: Nothing
+    Returns: Nothing
 
-extern Response *responses;
-
-extern int test_answers;
-
-// Store question strings
-
-// dynamic array to tell what answers to look out for.
-
-// store frequency of answers
-extern double **ans;
-
-extern int found_idx;
-
-extern int show_averages;
-extern int show_frequencies;
-extern int show_demographics;
-
-extern int question_idx;
-
-extern Survey survey;
-
-extern int total_answers;
-
+*/
 int init_answer_values()
 {
     survey.questions = (char **)emalloc(MAX_QUESTIONS * sizeof(char **));
 
     for (int i = 0; i < MAX_QUESTIONS; i++)
     {
-        survey.questions[i] = emalloc(MAX_LEN * sizeof(char *));
+        survey.questions[i] = emalloc(MAX_LEN * sizeof(char ));
     }
 
     // allocate memory to answers char array.
@@ -63,24 +38,22 @@ int init_answer_values()
 
         strncpy(survey.answers[i], "", MAX_LEN);
     }
-
+   
     return 0;
 }
 
-/*
-    Find's whether to display the Frequencies of Answers or the Averages.
-    Params: the line that determines the configuration.
+
+/* Dynamically Parse Survey array's. 
+    Params: char *line -> token
+            char ***items -> the destination to place each token in an array
+            int *count -> the size of the array and which specific index to grow from
     Returns: Nothing
 */
-void get_config(char *line)
-{
-}
-
 void dyn_parse(char *line, char ***items, int *count)
 {
     char *delimiter = ",\n";
     char *temp = emalloc(strlen(line) + 1);
-    strncpy(temp, line, strlen(line));
+    strncpy(temp, line, strlen(line)+ 1);
     temp[strlen(line)] = '\0';
     char *token = strtok(temp, delimiter);
 
@@ -94,10 +67,10 @@ void dyn_parse(char *line, char ***items, int *count)
 
     while (token != NULL)
     {
-       
-        (*items)[*count] = (char *)emalloc(1 + strlen(line) * sizeof(char));
-        strncpy((*items)[*count], token, strlen(line));
-        (*items)[*count][strlen(line)] = '\0';
+
+        (*items)[*count] = (char *)emalloc(strlen(token) +1);
+        strncpy((*items)[*count], token, strlen(token) + 1);
+        (*items)[*count][strlen(token)] = '\0';
         (*count)++;
         token = strtok(NULL, delimiter);
     }
@@ -120,13 +93,19 @@ void get_questions(char *line)
     while (question != NULL && survey.num_questions < MAX_QUESTIONS)
     {
         strncpy(survey.questions[survey.num_questions], question, MAX_LEN);
-        survey.questions[survey.num_questions][MAX_LEN] = '\0';
+        survey.questions[survey.num_questions][MAX_LEN-1] = '\0';
         survey.num_questions++;
         question = strtok(NULL, delimiter);
     }
     free(temp);
 }
 
+
+/**
+ * Gets the answers from the file. Initialzing the answers array on first function call with test_answers;
+ * Params: line -> token
+ * Return: Nothing
+ */
 void get_answers(char *line)
 {
     char *each_answer;
