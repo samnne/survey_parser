@@ -16,7 +16,7 @@
 
 int init_answer_values();
 void get_config(char *line);
-void dyn_parse(char *line, char **items, int *count);
+void dyn_parse(char *line, char ***items, int *count);
 void get_res_status(char *line);
 void get_questions(char *line);
 void get_answers(char *line);

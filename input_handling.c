@@ -39,10 +39,6 @@ extern Survey survey;
 
 extern int total_answers;
 
-Respondent *newRespondent(char *degree, char *residence);
-
-Respondent *addRes(Respondent *listp, Respondent *newRes);
-
 int init_answer_values()
 {
     survey.questions = (char **)emalloc(MAX_QUESTIONS * sizeof(char **));
@@ -80,35 +76,33 @@ void get_config(char *line)
 {
 }
 
-void dyn_parse(char *line, char **items, int *count)
+void dyn_parse(char *line, char ***items, int *count)
 {
-
     char *delimiter = ",\n";
     char *temp = emalloc(strlen(line) + 1);
     strncpy(temp, line, strlen(line));
     temp[strlen(line)] = '\0';
     char *token = strtok(temp, delimiter);
-    
+
     int initalSize = 10;
 
-    items = (char **)emalloc(initalSize * sizeof(char *));
-    
+    if (*items == NULL || *count == 0)
+    {
+        *items = (char **)emalloc(initalSize * sizeof(char *));
+        *count = 0;
+    }
+
     while (token != NULL)
     {
-        if (*count >= initalSize){
-            items = (char **)realloc(&items, initalSize * sizeof(char *));
-    
-        }
-        items[*count] = (char *)emalloc(1 + strlen(token) * sizeof(char ));
-        
-        strncpy(items[*count], token, strlen(token));
-
+       
+        (*items)[*count] = (char *)emalloc(1 + strlen(line) * sizeof(char));
+        strncpy((*items)[*count], token, strlen(line));
+        (*items)[*count][strlen(line)] = '\0';
         (*count)++;
         token = strtok(NULL, delimiter);
     }
     free(temp);
 }
-
 
 /*
     Gets the questions in the given text from the stdin seperated by semi-colons.
@@ -126,10 +120,11 @@ void get_questions(char *line)
     while (question != NULL && survey.num_questions < MAX_QUESTIONS)
     {
         strncpy(survey.questions[survey.num_questions], question, MAX_LEN);
-
+        survey.questions[survey.num_questions][MAX_LEN] = '\0';
         survey.num_questions++;
         question = strtok(NULL, delimiter);
     }
+    free(temp);
 }
 
 void get_answers(char *line)
@@ -144,4 +139,3 @@ void get_answers(char *line)
         each_answer = strtok(NULL, ",\n");
     }
 }
-
