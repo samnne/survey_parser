@@ -78,7 +78,6 @@ This project mirrors real-world data workflows where:
 These concepts directly apply to:
 - Data analysis pipelines
 - Risk analysis systems
-- ETL (Extract, Transform, Load) processes
 - Business intelligence workflows
 
 ## Future Improvements
